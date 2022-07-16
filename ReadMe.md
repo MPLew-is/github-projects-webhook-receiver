@@ -10,7 +10,7 @@ Roughly, the following steps are performed:
 
 This is built upon the following packages, see those repositories for more in-depth information:
 - [GitHub GraphQL client](https://github.com/MPLew-is/github-graphql-client)
-- [Slack Message client](https://github.com/NPLew-is/slack-message-client)
+- [Slack Message client](https://github.com/MPLew-is/slack-message-client)
 
 **Important**: this is still in extremely early development, and the below setup steps are mostly to document my own deployment of this Lambda rather than be a guarantee of how to set this up from scratch.
 
