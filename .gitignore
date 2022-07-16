@@ -1,0 +1,6 @@
+# Ignore Swift build products.
+/.build
+/.lambda
+
+# Prevent accidental committing of real secret values.
+/Secrets
