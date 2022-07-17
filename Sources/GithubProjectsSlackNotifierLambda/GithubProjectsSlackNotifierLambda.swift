@@ -10,8 +10,20 @@ import DeepCodable
 import GithubProjectsSlackNotifier
 
 
+/// Object representing data contained by all GitHub App webhook events, such as the installation ID
+struct GithubBaseWebhookEvent: DeepDecodable {
+	static let codingTree = CodingTree {
+		Key("installation") {
+			Key("id", containing: \._installationId)
+		}
+	}
+
+	@Value var installationId: Int
+}
+
+
 /// Object representing data received in a GitHub `projects_v2_item` webhook request
-struct GithubProjectsWebhookRequest: DeepDecodable {
+struct GithubProjectsWebhookEvent: DeepDecodable {
 	static let codingTree = CodingTree {
 		Key("action", containing: \._action)
 
@@ -131,40 +143,20 @@ struct DirectLambdaHandler: LambdaHandler {
 		let secretsManagerClient: SecretsManagerClient = try .init(region: region)
 
 
+		// Use a single decoder for all the decoding below, for performance.
+		let decoder: JSONDecoder = .init()
+
 		/*
-		Start fetching the values of required secrets, from ARNs provided via environment variables.
+		Fetch and decode the values of required secrets, from ARNs provided via environment variables.
+		These seem to have to be sequential to avoid segfaults, but could in theory be transformed into `async let` statements to exploit concurrency.
 		*/
 		guard let githubCredentials_secretArn = Lambda.env("GITHUB_CREDENTIALS_SECRET_ARN") else {
 			throw LambdaInitializationError.environmentVariableNotFound(variable: "GITHUB_CREDENTIALS_SECRET_ARN")
 		}
 		let githubCredentials_secretRequest: GetSecretValueInput = .init(secretId: githubCredentials_secretArn)
-		async let githubCredentials_secretResponse = secretsManagerClient.getSecretValue(input: githubCredentials_secretRequest)
+		let githubCredentials_secretResponse = try await secretsManagerClient.getSecretValue(input: githubCredentials_secretRequest)
 
-		guard let slackCredentials_secretArn = Lambda.env("SLACK_CREDENTIALS_SECRET_ARN") else {
-			throw LambdaInitializationError.environmentVariableNotFound(variable: "SLACK_CREDENTIALS_SECRET_ARN")
-		}
-		let slackCredentials_secretRequest: GetSecretValueInput = .init(secretId: slackCredentials_secretArn)
-		async let slackCredentials_secretResponse = secretsManagerClient.getSecretValue(input: slackCredentials_secretRequest)
-
-		guard let githubSlackConfiguration_secretArn = Lambda.env("GITHUB_SLACK_CONFIGURATION_SECRET_ARN") else {
-			throw LambdaInitializationError.environmentVariableNotFound(variable: "GITHUB_SLACK_CONFIGURATION_SECRET_ARN")
-		}
-		let githubSlackConfiguration_secretRequest: GetSecretValueInput = .init(secretId: githubSlackConfiguration_secretArn)
-		async let githubSlackConfiguration_secretResponse = secretsManagerClient.getSecretValue(input: githubSlackConfiguration_secretRequest)
-
-
-		guard let githubInstallationLogin = Lambda.env("GITHUB_APP_INSTALLATION_LOGIN") else {
-			throw LambdaInitializationError.environmentVariableNotFound(variable: "GITHUB_APP_INSTALLATION_LOGIN")
-		}
-
-
-		// Use a single decoder for all the decoding below, for performance.
-		let decoder: JSONDecoder = .init()
-
-		/*
-		Wait on and decode secret values fetched from AWS Secrets Manager.
-		*/
-		guard let githubCredentials_string = try await githubCredentials_secretResponse.secretString else {
+		guard let githubCredentials_string = githubCredentials_secretResponse.secretString else {
 			throw LambdaInitializationError.secretNil(description: "Github credentials", arn: githubCredentials_secretArn)
 		}
 		guard let githubCredentials_data = githubCredentials_string.data(using: .utf8) else {
@@ -172,7 +164,14 @@ struct DirectLambdaHandler: LambdaHandler {
 		}
 		let githubCredentials = try decoder.decode(GithubCredentials.self, from: githubCredentials_data)
 
-		guard let slackCredentials_string = try await slackCredentials_secretResponse.secretString else {
+
+		guard let slackCredentials_secretArn = Lambda.env("SLACK_CREDENTIALS_SECRET_ARN") else {
+			throw LambdaInitializationError.environmentVariableNotFound(variable: "SLACK_CREDENTIALS_SECRET_ARN")
+		}
+		let slackCredentials_secretRequest: GetSecretValueInput = .init(secretId: slackCredentials_secretArn)
+		let slackCredentials_secretResponse = try await secretsManagerClient.getSecretValue(input: slackCredentials_secretRequest)
+
+		guard let slackCredentials_string = slackCredentials_secretResponse.secretString else {
 			throw LambdaInitializationError.secretNil(description: "Slack credentials", arn: slackCredentials_secretArn)
 		}
 		guard let slackCredentials_data = slackCredentials_string.data(using: .utf8) else {
@@ -180,7 +179,14 @@ struct DirectLambdaHandler: LambdaHandler {
 		}
 		let slackCredentials = try decoder.decode(SlackCredentials.self, from: slackCredentials_data)
 
-		guard let githubSlackConfiguration_string = try await githubSlackConfiguration_secretResponse.secretString else {
+
+		guard let githubSlackConfiguration_secretArn = Lambda.env("GITHUB_SLACK_CONFIGURATION_SECRET_ARN") else {
+			throw LambdaInitializationError.environmentVariableNotFound(variable: "GITHUB_SLACK_CONFIGURATION_SECRET_ARN")
+		}
+		let githubSlackConfiguration_secretRequest: GetSecretValueInput = .init(secretId: githubSlackConfiguration_secretArn)
+		let githubSlackConfiguration_secretResponse = try await secretsManagerClient.getSecretValue(input: githubSlackConfiguration_secretRequest)
+
+		guard let githubSlackConfiguration_string = githubSlackConfiguration_secretResponse.secretString else {
 			throw LambdaInitializationError.secretNil(description: "GitHub/Slack configuration", arn: githubSlackConfiguration_secretArn)
 		}
 		guard let githubSlackConfiguration_data = githubSlackConfiguration_string.data(using: .utf8) else {
@@ -188,15 +194,14 @@ struct DirectLambdaHandler: LambdaHandler {
 		}
 		let githubSlackConfiguration = try decoder.decode(GithubSlackConfiguration.self, from: githubSlackConfiguration_data)
 
-
 		// With all the required secrets assembled, initialize the GitHub/Slack client.
 		self.notifier = try await .init(
 			githubAppId: githubCredentials.appId,
 			githubPrivateKey: githubCredentials.privateKey,
-			githubInstallationLogin: githubInstallationLogin,
 			slackAuthToken: slackCredentials.botToken,
 			slackChannelId: githubSlackConfiguration.slackChannelId
 		)
+
 
 		// We already verified the entire blob containing this item could be decoded to data as UTF-8, no need to check again.
 		self.githubWebhookSecret = githubCredentials.webhookSecret.data(using: .utf8)!
@@ -248,16 +253,31 @@ struct DirectLambdaHandler: LambdaHandler {
 			return .init(statusCode: .badRequest)
 		}
 
-
 		guard HMAC<SHA256>.isValidAuthenticationCode(signature_uint.serialize(), authenticating: payload_data, using: .init(data: self.githubWebhookSecret)) else {
 			context.logger.error("Payload body did not pass signature verification")
 			return .init(statusCode: .badRequest)
 		}
 
 
-		let payload: GithubProjectsWebhookRequest
+		/*
+		Interpreting the payload as a base event, extract the installation ID from the webhook.
+		This way, we can both not have to configure the installation ID/login ahead of time, and can support multiple.
+		*/
+		let installationId: Int
 		do {
-			payload = try JSONDecoder().decode(GithubProjectsWebhookRequest.self, from: payload_data)
+			let basePayload = try JSONDecoder().decode(GithubBaseWebhookEvent.self, from: payload_data)
+			installationId = basePayload.installationId
+		}
+		catch {
+			context.logger.error("Payload body could not be decoded even to a base webhook event")
+			return .init(statusCode: .badRequest)
+		}
+
+
+
+		let payload: GithubProjectsWebhookEvent
+		do {
+			payload = try JSONDecoder().decode(GithubProjectsWebhookEvent.self, from: payload_data)
 		}
 		catch {
 			context.logger.error("Payload body could not be decoded to the expected type")
@@ -277,7 +297,7 @@ struct DirectLambdaHandler: LambdaHandler {
 
 
 		context.logger.info("Processing item: \(payload.itemId)")
-		let _ = try await self.notifier.sendChangeMessage(itemId: payload.itemId, username: payload.username)
+		let _ = try await self.notifier.sendChangeMessage(itemId: payload.itemId, username: payload.username, installationId: installationId)
 
 		return .init(statusCode: .noContent)
 	}

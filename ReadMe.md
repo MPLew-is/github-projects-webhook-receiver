@@ -22,7 +22,7 @@ This is built upon the following packages, see those repositories for more in-de
 ### GitHub ###
 
 1. [Create a GitHub App](https://docs.github.com/en/developers/apps/building-github-apps/creating-a-github-app) in your account (alternatively use an existing app you have already created)
-	- The only values you need to fill in is the app name and URL (which can be your GitHub profile URL), and you can uncheck `Active` under `Webhook`
+	- The only values you need to fill in are the app name and URL (which can be your GitHub profile URL), and you can uncheck `Active` under `Webhook` (you'll come back and fill this in once you have a URL)
 	- Under `Repository permissions`, then `Issues`, grant `Read-only` permissions
 	- Under `Organization permissions`, then `Projects`, grant `Read-only` permissions
 2. After successful creation, copy the `App ID` value and replace the example value for the key `appId` in `Secrets/github-credentials.json`
@@ -92,8 +92,9 @@ This is built upon the following packages, see those repositories for more in-de
 	- `GITHUB_SLACK_CONFIGURATION_SECRET_ARN`: ARN for the GitHub/Slack configuration secret created above
 	- `GITHUB_APP_INSTALLATION_LOGIN`: name of the user/organization you installed your GitHub App on
 7. [Create a Function URL](https://docs.aws.amazon.com/lambda/latest/dg/urls-configuration.html) for your Lambda
-8. [Create a GitHub webhook](https://docs.github.com/en/developers/webhooks-and-events/webhooks/creating-webhooks) on your user/organization with the Lambda Function URL as the destination
+8. Back in your GitHub App settings, in the `General` tab and the `Webhook` section, check the `Active` box and fill in your new Lambda URL
 	- Use the HMAC secret created above and stored in `Secrets/github-credentials.json` as the Webhook secret
-	- The only event you need to receive is `project_v2_item`
+	- Make sure to click `Save changes` when done
+9. In the `Permissions & events` tab, under the `Subscribe to events` section, select `Projects v2 item` and then click `Save changes`
 
 You should now be able to create/move items in your project and have a Slack notification sent to your specified channel.

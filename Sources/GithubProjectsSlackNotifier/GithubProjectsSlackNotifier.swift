@@ -31,7 +31,6 @@ public class GithubProjectsSlackNotifier {
 	- Parameters:
 		- githubAppId: unique ID for the GitHub App this client is authenticating as an installation of
 		- githubPrivateKey: PEM-encoded private key of the GitHub App, to authenticate as the app to the GitHub API
-		- githubInstallationLogin: login name of the account the GitHub App has been installed on, and on whose resources the actual API calls will be made
 		- slackAuthToken: Slack API authentication token to use to send messages
 		- slackChannelId: Slack channel to send update messages to
 		- httpClient: if not provided, the instance will create a new one and destroy it on `deinit`
@@ -41,7 +40,6 @@ public class GithubProjectsSlackNotifier {
 	public init(
 		githubAppId: String,
 		githubPrivateKey: String,
-		githubInstallationLogin: String,
 		slackAuthToken: String,
 		slackChannelId: String,
 		httpClient: HTTPClient? = nil
@@ -55,7 +53,7 @@ public class GithubProjectsSlackNotifier {
 			self.shouldShutdownHttpClient = true
 		}
 
-		self.githubClient = try await .init(appId: githubAppId, privateKey: githubPrivateKey, installationLogin: githubInstallationLogin, httpClient: self.httpClient)
+		self.githubClient = try await .init(appId: githubAppId, privateKey: githubPrivateKey, httpClient: self.httpClient)
 
 		self.slackClient = .init(authToken: slackAuthToken, httpClient: self.httpClient)
 		self.slackChannelId = slackChannelId
@@ -148,12 +146,13 @@ public class GithubProjectsSlackNotifier {
 	- Parameters:
 		- itemId: GraphQL node ID for the item that has changed statuses
 		- username: GitHub username that initiated the change action
+		- installationId: GitHub App installation ID this request is being executed on behalf of
 
 	- Returns: `true` if a message was sent, `false` otherwise (items are ignored if they have no status)
 	- Throws: Only rethrows errors from underlying GraphQL querying or Slack message sending
 	*/
-	public func sendChangeMessage(itemId: String, username: String) async throws -> Bool {
-		let item = try await self.githubClient.query(ProjectItem.self, id: itemId)
+	public func sendChangeMessage(itemId: String, username: String, installationId: Int) async throws -> Bool {
+		let item = try await self.githubClient.query(ProjectItem.self, id: itemId, for: installationId)
 		let project = item.project
 
 		guard let status = item.status else {
