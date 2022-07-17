@@ -203,16 +203,16 @@ struct DirectLambdaHandler: LambdaHandler {
 
 	func handle(_ event: Event, context: LambdaContext) async throws -> Output {
 		// This should always have a payload, or we have nothing to process.
-		guard let body = event.body else {
+		guard let payload_string = event.body else {
 			return .init(statusCode: .badRequest)
 		}
 
 		let payload_data: Data?
 		if event.isBase64Encoded {
-			payload_data = .init(base64Encoded: body)
+			payload_data = .init(base64Encoded: payload_string)
 		}
 		else {
-			payload_data = body.data(using: .utf8)
+			payload_data = payload_string.data(using: .utf8)
 		}
 
 		guard let payload_data = payload_data else {
