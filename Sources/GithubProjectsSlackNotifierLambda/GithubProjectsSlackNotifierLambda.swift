@@ -204,6 +204,7 @@ struct DirectLambdaHandler: LambdaHandler {
 	func handle(_ event: Event, context: LambdaContext) async throws -> Output {
 		// This should always have a payload, or we have nothing to process.
 		guard let payload_string = event.body else {
+			context.logger.error("Payload has no body")
 			return .init(statusCode: .badRequest)
 		}
 
@@ -214,8 +215,9 @@ struct DirectLambdaHandler: LambdaHandler {
 		else {
 			payload_data = payload_string.data(using: .utf8)
 		}
-
 		guard let payload_data = payload_data else {
+			let encoding: String = event.isBase64Encoded ? "base-64" : "UTF-8"
+			context.logger.error("Payload body could not be decoded from \(encoding) encoded string: \(payload_string)")
 			return .init(statusCode: .badRequest)
 		}
 
@@ -224,6 +226,7 @@ struct DirectLambdaHandler: LambdaHandler {
 			payload = try JSONDecoder().decode(GithubProjectsWebhookRequest.self, from: payload_data)
 		}
 		catch {
+			context.logger.error("Payload body could not be decoded to the expected type")
 			return .init(statusCode: .badRequest)
 		}
 
