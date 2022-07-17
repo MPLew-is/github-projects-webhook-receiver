@@ -28,6 +28,15 @@
       }
     },
     {
+      "identity" : "bigint",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/attaswift/BigInt",
+      "state" : {
+        "revision" : "0ed110f7555c34ff468e72e1686e59721f2b0da6",
+        "version" : "5.3.0"
+      }
+    },
+    {
       "identity" : "deep-codable",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/MPLew-is/deep-codable",
@@ -84,7 +93,7 @@
     {
       "identity" : "swift-aws-lambda-runtime",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swift-server/swift-aws-lambda-runtime.git",
+      "location" : "https://github.com/swift-server/swift-aws-lambda-runtime",
       "state" : {
         "revision" : "cb340de265665e23984b1f5de3ac4d413a337804"
       }

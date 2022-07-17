@@ -56,6 +56,8 @@ This is built upon the following packages, see those repositories for more in-de
 	```
 10. Copy the value at `data.organization.projectV2.id` and replace the example value for the key `githubProjectId` in `Secrets/github-slack-configuration.json`
 11. Copy the `data.organization.projectV2.field.id`, **delete the `SS` in the ID (replace `PVTSSF` with `PVTF`), then replace the example value for the key `githubProjectFieldId` in `Secrets/github-slack-configuration.json`
+12. [Create an HMAC secret for your webhook](https://docs.github.com/en/developers/webhooks-and-events/webhooks/securing-your-webhooks#setting-your-secret-token), copy it, and replace the example value for the key `webhookSecret` in `Secrets/github-credentials.json`
+	- An example tool has been provided in this package to generate a sufficiently secure secret, simply run: `swift run GenerateHmacSecret` and copy the resulting output string
 
 
 ### Slack ###
@@ -91,6 +93,7 @@ This is built upon the following packages, see those repositories for more in-de
 	- `GITHUB_APP_INSTALLATION_LOGIN`: name of the user/organization you installed your GitHub App on
 7. [Create a Function URL](https://docs.aws.amazon.com/lambda/latest/dg/urls-configuration.html) for your Lambda
 8. [Create a GitHub webhook](https://docs.github.com/en/developers/webhooks-and-events/webhooks/creating-webhooks) on your user/organization with the Lambda Function URL as the destination
+	- Use the HMAC secret created above and stored in `Secrets/github-credentials.json` as the Webhook secret
 	- The only event you need to receive is `project_v2_item`
 
 You should now be able to create/move items in your project and have a Slack notification sent to your specified channel.

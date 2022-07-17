@@ -3,6 +3,8 @@ import Foundation
 import AWSLambdaEvents
 import AWSLambdaRuntime
 import AWSSecretsManager
+import BigInt
+import Crypto
 import DeepCodable
 
 import GithubProjectsSlackNotifier
@@ -85,6 +87,8 @@ struct GithubCredentials: Decodable {
 	let appId: String
 	/// PEM-encoded GitHub App private key, to sign authentication tokens for API access
 	let privateKey: String
+	/// HMAC shared secret for [verifying webhook bodies](https://docs.github.com/en/developers/webhooks-and-events/webhooks/securing-your-webhooks)
+	let webhookSecret: String
 }
 
 /// Object representing required Slack credentials, to be decoded from an AWS Secrets Manager response
@@ -110,6 +114,8 @@ struct DirectLambdaHandler: LambdaHandler {
 	/// Stored client for interfacing with both the GitHub and Slack APIs for sending project change notifications
 	let notifier: GithubProjectsSlackNotifier
 
+	/// HMAC shared secret to verify webhook payloads
+	let githubWebhookSecret: Data
 	/// GraphQL node ID of the GitHub Project being watched for changes
 	let githubProjectId: String
 	/// GraphQL node ID of the GitHub Project field being watched for changes
@@ -192,6 +198,8 @@ struct DirectLambdaHandler: LambdaHandler {
 			slackChannelId: githubSlackConfiguration.slackChannelId
 		)
 
+		// We already verified the entire blob containing this item could be decoded to data as UTF-8, no need to check again.
+		self.githubWebhookSecret = githubCredentials.webhookSecret.data(using: .utf8)!
 
 		self.githubProjectId = githubSlackConfiguration.githubProjectId
 		self.githubProjectFieldId = githubSlackConfiguration.githubProjectFieldId
@@ -201,10 +209,29 @@ struct DirectLambdaHandler: LambdaHandler {
 	typealias Event  = FunctionURLRequest
 	typealias Output = FunctionURLResponse
 
+	/// Prefix for actual signature in the event received from GitHub, for centralization purposes.
+	static let signaturePrefix = "sha256="
+
 	func handle(_ event: Event, context: LambdaContext) async throws -> Output {
 		// This should always have a payload, or we have nothing to process.
 		guard let payload_string = event.body else {
 			context.logger.error("Payload has no body")
+			return .init(statusCode: .badRequest)
+		}
+
+		guard let signature_prefixedString = event.headers["x-hub-signature-256"] else {
+			context.logger.error("Payload has no signature, dumping headers: \(event.headers)")
+			return .init(statusCode: .badRequest)
+		}
+
+		guard signature_prefixedString.hasPrefix(Self.signaturePrefix) else {
+			context.logger.error("Payload's signature is not prefixed with required string '\(Self.signaturePrefix)': \(signature_prefixedString)")
+			return .init(statusCode: .badRequest)
+		}
+
+		let signature_string = signature_prefixedString.dropFirst(Self.signaturePrefix.count)
+		guard let signature_uint = BigUInt(signature_string, radix: 16) else {
+			context.logger.error("Payload's signature is not hex-encoded")
 			return .init(statusCode: .badRequest)
 		}
 
@@ -220,6 +247,13 @@ struct DirectLambdaHandler: LambdaHandler {
 			context.logger.error("Payload body could not be decoded from \(encoding) encoded string: \(payload_string)")
 			return .init(statusCode: .badRequest)
 		}
+
+
+		guard HMAC<SHA256>.isValidAuthenticationCode(signature_uint.serialize(), authenticating: payload_data, using: .init(data: self.githubWebhookSecret)) else {
+			context.logger.error("Payload body did not pass signature verification")
+			return .init(statusCode: .badRequest)
+		}
+
 
 		let payload: GithubProjectsWebhookRequest
 		do {
