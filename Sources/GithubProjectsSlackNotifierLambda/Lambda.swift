@@ -1,13 +1,14 @@
 import Foundation
 
+import AsyncHTTPClient
 import AWSLambdaEvents
 import AWSLambdaRuntime
 import AWSSecretsManager
 import BigInt
 import Crypto
 import DeepCodable
-
-import GithubProjectsSlackNotifier
+import GithubApiClient
+import SlackMessageClient
 
 
 /// Object representing data contained by all GitHub App webhook events, such as the installation ID
@@ -19,41 +20,6 @@ struct GithubBaseWebhookEvent: DeepDecodable {
 	}
 
 	@Value var installationId: Int
-}
-
-
-/// Object representing data received in a GitHub `projects_v2_item` webhook request
-struct GithubProjectsWebhookEvent: DeepDecodable {
-	static let codingTree = CodingTree {
-		Key("action", containing: \._action)
-
-		Key("projects_v2_item") {
-			Key("node_id", containing: \._itemId)
-			Key("project_node_id", containing: \._projectId)
-		}
-
-		Key("changes") {
-			Key("field_value") {
-				Key("field_node_id", containing: \._fieldId)
-			}
-		}
-
-		Key("sender") {
-			Key("login", containing: \._username)
-		}
-	}
-
-	/// Action this event is informing us about (`edited`, `created`, `reordered`, etc.)
-	@Value var action: String
-	/// Username performing the action
-	@Value var username: String
-
-	/// GraphQL node ID for the item that is the subject of this event
-	@Value var itemId: String
-	/// GraphQL node ID for the project containing the subject item
-	@Value var projectId: String
-	/// GraphQL node ID for the field modified on the item (only present when the action is `edited`)
-	@Value var fieldId: String?
 }
 
 
@@ -122,9 +88,13 @@ struct GithubSlackConfiguration: Decodable {
 
 
 @main
-struct DirectLambdaHandler: LambdaHandler {
-	/// Stored client for interfacing with both the GitHub and Slack APIs for sending project change notifications
-	let notifier: GithubProjectsSlackNotifier
+final class FunctionUrlLambdaHandler: LambdaHandler {
+	/// Stored client for making asynchronous HTTP requests
+	let httpClient: HTTPClient
+
+
+	/// Stored client for interfacing with the GitHub API
+	let githubClient: GithubApiClient
 
 	/// HMAC shared secret to verify webhook payloads
 	let githubWebhookSecret: Data
@@ -132,6 +102,13 @@ struct DirectLambdaHandler: LambdaHandler {
 	let githubProjectId: String
 	/// GraphQL node ID of the GitHub Project field being watched for changes
 	let githubProjectFieldId: String
+
+
+	/// Stored client for interfacing with the Slack API
+	let slackClient: SlackMessageClient
+
+	/// Slack channel ID to sent messages to
+	let slackChannelId: String
 
 	init(context _: LambdaInitializationContext) async throws {
 		/*
@@ -194,20 +171,32 @@ struct DirectLambdaHandler: LambdaHandler {
 		}
 		let githubSlackConfiguration = try decoder.decode(GithubSlackConfiguration.self, from: githubSlackConfiguration_data)
 
-		// With all the required secrets assembled, initialize the GitHub/Slack client.
-		self.notifier = try await .init(
-			githubAppId: githubCredentials.appId,
-			githubPrivateKey: githubCredentials.privateKey,
-			slackAuthToken: slackCredentials.botToken,
-			slackChannelId: githubSlackConfiguration.slackChannelId
-		)
 
+		self.httpClient = .init(eventLoopGroupProvider: .createNew)
+
+
+		self.githubClient = try .init(
+			appId: githubCredentials.appId,
+			privateKey: githubCredentials.privateKey,
+			httpClient: httpClient
+		)
 
 		// We already verified the entire blob containing this item could be decoded to data as UTF-8, no need to check again.
 		self.githubWebhookSecret = githubCredentials.webhookSecret.data(using: .utf8)!
 
 		self.githubProjectId = githubSlackConfiguration.githubProjectId
 		self.githubProjectFieldId = githubSlackConfiguration.githubProjectFieldId
+
+
+		self.slackClient = .init(
+			authToken: slackCredentials.botToken,
+			httpClient: httpClient
+		)
+		self.slackChannelId = githubSlackConfiguration.slackChannelId
+	}
+
+	deinit {
+		try? self.httpClient.syncShutdown()
 	}
 
 
@@ -281,39 +270,11 @@ struct DirectLambdaHandler: LambdaHandler {
 		// Once decoded and validated, route events to the appropriate handler.
 		switch eventName {
 			case "projects_v2_item":
-				return try await self.handleProjectsItem(payload: payload_data, installationId: installationId, context: context)
+				return try await self.handleProjectsItem(payload: payload_data, context: context, installationId: installationId)
 
 			default:
 				context.logger.error("Unrecognized event: \(eventName)")
 				return .init(statusCode: .unprocessableEntity)
 		}
-	}
-
-	func handleProjectsItem(payload payload_data: Data, installationId: Int, context: LambdaContext) async throws -> Output {
-		let payload: GithubProjectsWebhookEvent
-		do {
-			payload = try JSONDecoder().decode(GithubProjectsWebhookEvent.self, from: payload_data)
-		}
-		catch {
-			context.logger.error("Payload body could not be decoded to the expected type")
-			return .init(statusCode: .badRequest)
-		}
-
-		// Only process events that match what we're looking for.
-		guard
-			payload.action    == "edited",
-			payload.projectId == self.githubProjectId,
-			let fieldId = payload.fieldId,
-			fieldId   == self.githubProjectFieldId
-		else {
-			context.logger.info("Skipping event with action '\(payload.action)', Project ID '\(payload.projectId)', Field ID '\(String(describing: payload.fieldId))'")
-			return .init(statusCode: .noContent)
-		}
-
-
-		context.logger.info("Processing item: \(payload.itemId)")
-		let _ = try await self.notifier.sendChangeMessage(itemId: payload.itemId, username: payload.username, installationId: installationId)
-
-		return .init(statusCode: .noContent)
 	}
 }

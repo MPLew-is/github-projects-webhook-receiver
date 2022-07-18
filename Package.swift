@@ -8,10 +8,6 @@ let package = Package(
 		.macOS(.v12),
 	],
 	products: [
-		.library(
-			name: "GithubProjectsSlackNotifier",
-			targets: ["GithubProjectsSlackNotifier"]
-		),
 		.executable(
 			name: "GithubProjectsSlackNotifierLambda",
 			targets: ["GithubProjectsSlackNotifierLambda"]
@@ -30,26 +26,20 @@ let package = Package(
 		.package(url: "https://github.com/MPLew-is/slack-message-client", branch: "main"),
 	],
 	targets: [
-		.target(
-			name: "GithubProjectsSlackNotifier",
+		.executableTarget(
+			name: "GithubProjectsSlackNotifierLambda",
 			dependencies: [
 				.product(name: "AsyncHTTPClient",        package: "async-http-client"),
+				.product(name: "AWSLambdaEvents",        package: "swift-aws-lambda-events"),
+				.product(name: "AWSLambdaRuntime",       package: "swift-aws-lambda-runtime"),
+				.product(name: "AWSSecretsManager",      package: "aws-sdk-swift"),
+				.product(name: "BigInt",                 package: "BigInt"),
+				.product(name: "Crypto",                 package: "swift-crypto"),
+				.product(name: "DeepCodable",            package: "deep-codable"),
 				.product(name: "GithubApiClient",        package: "github-graphql-client"),
 				.product(name: "GithubGraphqlQueryable", package: "github-graphql-client"),
 				.product(name: "BlockKitMessage",        package: "slack-message-client"),
 				.product(name: "SlackMessageClient",     package: "slack-message-client"),
-			]
-		),
-		.executableTarget(
-			name: "GithubProjectsSlackNotifierLambda",
-			dependencies: [
-				"GithubProjectsSlackNotifier",
-				.product(name: "AWSLambdaEvents", package: "swift-aws-lambda-events"),
-				.product(name: "AWSLambdaRuntime", package: "swift-aws-lambda-runtime"),
-				.product(name: "AWSSecretsManager", package: "aws-sdk-swift"),
-				.product(name: "BigInt", package: "BigInt"),
-				.product(name: "Crypto", package: "swift-crypto"),
-				.product(name: "DeepCodable", package: "deep-codable"),
 			]
 		),
 		.executableTarget(
