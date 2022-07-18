@@ -224,6 +224,11 @@ struct DirectLambdaHandler: LambdaHandler {
 			return .init(statusCode: .badRequest)
 		}
 
+		guard let eventName = event.headers["x-github-event"] else {
+			context.logger.error("Payload did not include event name, dumping headers: \(event.headers)")
+			return .init(statusCode: .badRequest)
+		}
+
 		guard let signature_prefixedString = event.headers["x-hub-signature-256"] else {
 			context.logger.error("Payload has no signature, dumping headers: \(event.headers)")
 			return .init(statusCode: .badRequest)
@@ -258,7 +263,6 @@ struct DirectLambdaHandler: LambdaHandler {
 			return .init(statusCode: .badRequest)
 		}
 
-
 		/*
 		Interpreting the payload as a base event, extract the installation ID from the webhook.
 		This way, we can both not have to configure the installation ID/login ahead of time, and can support multiple.
@@ -274,7 +278,18 @@ struct DirectLambdaHandler: LambdaHandler {
 		}
 
 
+		// Once decoded and validated, route events to the appropriate handler.
+		switch eventName {
+			case "projects_v2_item":
+				return try await self.handleProjectsItem(payload: payload_data, installationId: installationId, context: context)
 
+			default:
+				context.logger.error("Unrecognized event: \(eventName)")
+				return .init(statusCode: .unprocessableEntity)
+		}
+	}
+
+	func handleProjectsItem(payload payload_data: Data, installationId: Int, context: LambdaContext) async throws -> Output {
 		let payload: GithubProjectsWebhookEvent
 		do {
 			payload = try JSONDecoder().decode(GithubProjectsWebhookEvent.self, from: payload_data)
