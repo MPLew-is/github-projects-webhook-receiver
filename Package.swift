@@ -34,7 +34,7 @@ let package = Package(
 			name: "GithubProjectsSlackNotifier",
 			dependencies: [
 				.product(name: "AsyncHTTPClient",        package: "async-http-client"),
-				.product(name: "GithubGraphqlClient",    package: "github-graphql-client"),
+				.product(name: "GithubApiClient",        package: "github-graphql-client"),
 				.product(name: "GithubGraphqlQueryable", package: "github-graphql-client"),
 				.product(name: "BlockKitMessage",        package: "slack-message-client"),
 				.product(name: "SlackMessageClient",     package: "slack-message-client"),

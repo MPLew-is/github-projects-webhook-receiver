@@ -1,6 +1,6 @@
 import AsyncHTTPClient
 import BlockKitMessage
-import GithubGraphqlClient
+import GithubApiClient
 import GithubGraphqlQueryable
 import SlackMessageClient
 
@@ -17,7 +17,7 @@ public class GithubProjectsSlackNotifier {
 	private let shouldShutdownHttpClient: Bool
 
 	/// Stored GitHub GraphQL client
-	private let githubClient: GithubGraphqlClient
+	private let githubClient: GithubApiClient
 
 	/// Stored Slack message client
 	private let slackClient: SlackMessageClient
@@ -53,7 +53,7 @@ public class GithubProjectsSlackNotifier {
 			self.shouldShutdownHttpClient = true
 		}
 
-		self.githubClient = try await .init(appId: githubAppId, privateKey: githubPrivateKey, httpClient: self.httpClient)
+		self.githubClient = try .init(appId: githubAppId, privateKey: githubPrivateKey, httpClient: self.httpClient)
 
 		self.slackClient = .init(authToken: slackAuthToken, httpClient: self.httpClient)
 		self.slackChannelId = slackChannelId
@@ -152,7 +152,7 @@ public class GithubProjectsSlackNotifier {
 	- Throws: Only rethrows errors from underlying GraphQL querying or Slack message sending
 	*/
 	public func sendChangeMessage(itemId: String, username: String, installationId: Int) async throws -> Bool {
-		let item = try await self.githubClient.query(ProjectItem.self, id: itemId, for: installationId)
+		let item = try await self.githubClient.graphqlQuery(ProjectItem.self, id: itemId, for: installationId)
 		let project = item.project
 
 		guard let status = item.status else {
