@@ -49,7 +49,7 @@ public class GithubProjectsSlackNotifier {
 			self.shouldShutdownHttpClient = false
 		}
 		else {
-			self.httpClient = HTTPClient(eventLoopGroupProvider: .createNew)
+			self.httpClient = .init(eventLoopGroupProvider: .createNew)
 			self.shouldShutdownHttpClient = true
 		}
 
