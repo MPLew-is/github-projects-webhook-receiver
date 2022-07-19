@@ -157,8 +157,8 @@ final class FunctionUrlLambdaHandler: LambdaHandler {
 		let slackCredentials = try decoder.decode(SlackCredentials.self, from: slackCredentials_data)
 
 
-		guard let githubSlackConfiguration_secretArn = Lambda.env("GITHUB_SLACK_CONFIGURATION_SECRET_ARN") else {
-			throw LambdaInitializationError.environmentVariableNotFound(variable: "GITHUB_SLACK_CONFIGURATION_SECRET_ARN")
+		guard let githubSlackConfiguration_secretArn = Lambda.env("CONFIGURATION_SECRET_ARN") else {
+			throw LambdaInitializationError.environmentVariableNotFound(variable: "CONFIGURATION_SECRET_ARN")
 		}
 		let githubSlackConfiguration_secretRequest: GetSecretValueInput = .init(secretId: githubSlackConfiguration_secretArn)
 		let githubSlackConfiguration_secretResponse = try await secretsManagerClient.getSecretValue(input: githubSlackConfiguration_secretRequest)
