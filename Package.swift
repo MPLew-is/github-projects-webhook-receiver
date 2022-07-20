@@ -3,14 +3,14 @@
 import PackageDescription
 
 let package = Package(
-	name: "github-projects-slack-notifications",
+	name: "github-projects-webhook-receiver",
 	platforms: [
 		.macOS(.v12),
 	],
 	products: [
 		.executable(
-			name: "GithubProjectsSlackNotifierLambda",
-			targets: ["GithubProjectsSlackNotifierLambda"]
+			name: "GithubProjectsWebhookReceiver",
+			targets: ["GithubProjectsWebhookReceiver"]
 		),
 	],
 	dependencies: [
@@ -27,7 +27,7 @@ let package = Package(
 	],
 	targets: [
 		.executableTarget(
-			name: "GithubProjectsSlackNotifierLambda",
+			name: "GithubProjectsWebhookReceiver",
 			dependencies: [
 				.product(name: "AsyncHTTPClient",        package: "async-http-client"),
 				.product(name: "AWSLambdaEvents",        package: "swift-aws-lambda-events"),
