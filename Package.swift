@@ -14,16 +14,16 @@ let package = Package(
 		),
 	],
 	dependencies: [
-		.package(url: "https://github.com/apple/swift-crypto", from: "2.1.0"),
-		.package(url: "https://github.com/swift-server/async-http-client", from: "1.11.0"),
+		.package(url: "https://github.com/apple/swift-crypto",                    from: "2.1.0"),
+		.package(url: "https://github.com/swift-server/async-http-client",        from: "1.11.0"),
 		// This is a temporary solution until [the corresponding pull request](https://github.com/swift-server/swift-aws-lambda-events/pull/21) gets upstreamed.
-		.package(url: "https://github.com/MPLew-is/swift-aws-lambda-events", branch: "function-url"),
+		.package(url: "https://github.com/MPLew-is/swift-aws-lambda-events",      branch: "function-url"),
 		.package(url: "https://github.com/swift-server/swift-aws-lambda-runtime", revision: "cb340de265665e23984b1f5de3ac4d413a337804"),
-		.package(url: "https://github.com/awslabs/aws-sdk-swift", from: "0.2.5"),
-		.package(url: "https://github.com/attaswift/BigInt", from: "5.3.0"),
-		.package(url: "https://github.com/MPLew-is/deep-codable", branch: "main"),
-		.package(url: "https://github.com/MPLew-is/github-graphql-client", branch: "main"),
-		.package(url: "https://github.com/MPLew-is/slack-message-client", branch: "main"),
+		.package(url: "https://github.com/awslabs/aws-sdk-swift",                 from: "0.2.5"),
+		.package(url: "https://github.com/attaswift/BigInt",                      from: "5.3.0"),
+		.package(url: "https://github.com/MPLew-is/deep-codable",                 branch: "main"),
+		.package(url: "https://github.com/MPLew-is/github-graphql-client",        branch: "main"),
+		.package(url: "https://github.com/MPLew-is/slack-message-client",         branch: "main"),
 	],
 	targets: [
 		.executableTarget(

@@ -7,8 +7,8 @@ import GithubGraphqlQueryable
 import SlackMessageClient
 
 
-/// Object representing data received in a GitHub `projects_v2_item` webhook request
-struct GithubProjectsWebhookEvent: DeepDecodable {
+/// Data received in a GitHub `projects_v2_item` webhook request
+struct ProjectsItemEvent: DeepDecodable {
 	static let codingTree = CodingTree {
 		Key("action", containing: \._action)
 
@@ -42,9 +42,9 @@ struct GithubProjectsWebhookEvent: DeepDecodable {
 }
 
 
-/// Object representing selected fields and child objects of a GitHub Projects (V2) item
+/// Selected fields and child objects of a GitHub Projects (V2) item
 internal struct ProjectItem: GithubGraphqlQueryable {
-	/// Object representing selected fields and child objects of a GitHub Projects (V2) project
+	/// Selected fields of a GitHub Projects (V2) project
 	internal struct Project: GithubGraphqlQueryable {
 		internal static let query = Node(type: "ProjectV2") {
 			Field("title", containing: \._title)
@@ -59,7 +59,7 @@ internal struct ProjectItem: GithubGraphqlQueryable {
 		@Value internal var url: String
 	}
 
-	/// Object representing selected fields and child objects of a GitHub Projects (V2) field
+	/// Selected fields and child objects of a GitHub Projects (V2) field
 	internal struct ProjectFieldValue: GithubGraphqlQueryable {
 		internal static let query = Node(type: "ProjectV2ItemFieldSingleSelectValue") {
 			Field("name", containing: \._value)
@@ -108,7 +108,7 @@ internal struct ProjectItem: GithubGraphqlQueryable {
 	/// GitHub Project field values associated with this item
 	@Value internal var fieldValues: [ProjectFieldValue]
 
-	/// The value of the "Status" field attached to this item, fetched from the contained field-value list
+	/// Value of the "Status" field attached to this item, fetched from the contained field-value list
 	internal var status: String? {
 		let statusField = fieldValues.first { $0.fieldName == "Status" }
 		return statusField?.value
@@ -128,23 +128,26 @@ extension FunctionUrlLambdaHandler {
 	- Throws: Only rethrows errors from underlying GraphQL querying or Slack message sending
 	*/
 	func handleProjectsItem(payload payload_data: Data, context: LambdaContext, installationId: Int) async throws -> Output {
-		let payload: GithubProjectsWebhookEvent
+		let payload: ProjectsItemEvent
 		do {
-			payload = try JSONDecoder().decode(GithubProjectsWebhookEvent.self, from: payload_data)
+			payload = try JSONDecoder().decode(ProjectsItemEvent.self, from: payload_data)
 		}
 		catch {
 			context.logger.error("Payload body could not be decoded to the expected type")
 			return .init(statusCode: .badRequest)
 		}
 
-		// Only process events that match what we're looking for.
+		guard let fieldId = payload.fieldId else {
+			context.logger.info("Skipping event with no field ID'")
+			return .init(statusCode: .noContent)
+		}
+
 		guard
 			payload.action    == "edited",
 			payload.projectId == self.githubProjectId,
-			let fieldId = payload.fieldId,
-			fieldId   == self.githubProjectFieldId
+			fieldId           == self.githubProjectFieldId
 		else {
-			context.logger.info("Skipping event with action '\(payload.action)', Project ID '\(payload.projectId)', Field ID '\(String(describing: payload.fieldId))'")
+			context.logger.info("Skipping event with action '\(payload.action)', Project ID '\(payload.projectId)', Field ID '\(fieldId)'")
 			return .init(statusCode: .noContent)
 		}
 
@@ -156,7 +159,7 @@ extension FunctionUrlLambdaHandler {
 		let project = item.project
 
 		guard let status = item.status else {
-			context.logger.info("Item did not have a status value, skipping: \(itemId)")
+			context.logger.info("Skipping item without a status value: \(itemId)")
 			return .init(statusCode: .noContent)
 		}
 

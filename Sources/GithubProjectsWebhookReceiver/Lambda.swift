@@ -11,8 +11,8 @@ import GithubApiClient
 import SlackMessageClient
 
 
-/// Object representing data contained by all GitHub App webhook events, such as the installation ID
-struct GithubBaseWebhookEvent: DeepDecodable {
+/// Data contained by all GitHub App webhook events, such as the installation ID
+struct BaseWebhookEvent: DeepDecodable {
 	static let codingTree = CodingTree {
 		Key("installation") {
 			Key("id", containing: \._installationId)
@@ -23,7 +23,7 @@ struct GithubBaseWebhookEvent: DeepDecodable {
 }
 
 
-/// Error type representing failure scenarios during the Lambda's processing of the webhook event
+/// Failure scenarios during the Lambda's processing of the webhook event
 enum LambdaInitializationError: Error, CustomStringConvertible {
 	/**
 	A required environment variable was not set
@@ -59,7 +59,7 @@ enum LambdaInitializationError: Error, CustomStringConvertible {
 }
 
 
-/// Object representing required GitHub credentials, to be decoded from an AWS Secrets Manager response
+/// Required GitHub credentials, to be decoded from an AWS Secrets Manager response
 struct GithubCredentials: Decodable {
 	/// GitHub App ID that is being used to authenticate to the GitHub API
 	let appId: String
@@ -69,14 +69,14 @@ struct GithubCredentials: Decodable {
 	let webhookSecret: String
 }
 
-/// Object representing required Slack credentials, to be decoded from an AWS Secrets Manager response
+/// Required Slack credentials, to be decoded from an AWS Secrets Manager response
 struct SlackCredentials: Decodable {
 	/// Slack Bot token, to perform actions as a Slack App
 	let botToken: String
 }
 
-/// Object representing required GitHub/Slack configuration, to be decoded from an AWS Secrets Manager response
-struct GithubSlackConfiguration: Decodable {
+/// Required GitHub/Slack configuration, to be decoded from an AWS Secrets Manager response
+struct Configuration: Decodable {
 	/// GraphQL node ID of the GitHub Project being watched for changes
 	let githubProjectId: String
 	/// GraphQL node ID of the GitHub Project field being watched for changes
@@ -87,6 +87,7 @@ struct GithubSlackConfiguration: Decodable {
 }
 
 
+/// Lambda handler that responds to direct [function URL invocations](https://docs.aws.amazon.com/lambda/latest/dg/lambda-urls.html)
 @main
 final class FunctionUrlLambdaHandler: LambdaHandler {
 	/// Stored client for making asynchronous HTTP requests
@@ -110,10 +111,9 @@ final class FunctionUrlLambdaHandler: LambdaHandler {
 	/// Slack channel ID to sent messages to
 	let slackChannelId: String
 
-	init(context _: LambdaInitializationContext) async throws {
-		/*
-		Create an AWS Secrets Manager client for the current region.
-		*/
+
+	init(context: LambdaInitializationContext) async throws {
+		context.logger.info("Creating AWS service clients")
 		guard let region = Lambda.env("REGION") else {
 			throw LambdaInitializationError.environmentVariableNotFound(variable: "REGION")
 		}
@@ -127,12 +127,14 @@ final class FunctionUrlLambdaHandler: LambdaHandler {
 		Fetch and decode the values of required secrets, from ARNs provided via environment variables.
 		These seem to have to be sequential to avoid segfaults, but could in theory be transformed into `async let` statements to exploit concurrency.
 		*/
+		context.logger.info("Fetching GitHub Credentials")
 		guard let githubCredentials_secretArn = Lambda.env("GITHUB_CREDENTIALS_SECRET_ARN") else {
 			throw LambdaInitializationError.environmentVariableNotFound(variable: "GITHUB_CREDENTIALS_SECRET_ARN")
 		}
 		let githubCredentials_secretRequest: GetSecretValueInput = .init(secretId: githubCredentials_secretArn)
 		let githubCredentials_secretResponse = try await secretsManagerClient.getSecretValue(input: githubCredentials_secretRequest)
 
+		context.logger.info("Decoding GitHub Credentials")
 		guard let githubCredentials_string = githubCredentials_secretResponse.secretString else {
 			throw LambdaInitializationError.secretNil(description: "Github credentials", arn: githubCredentials_secretArn)
 		}
@@ -142,12 +144,14 @@ final class FunctionUrlLambdaHandler: LambdaHandler {
 		let githubCredentials = try decoder.decode(GithubCredentials.self, from: githubCredentials_data)
 
 
+		context.logger.info("Fetching Slack Credentials")
 		guard let slackCredentials_secretArn = Lambda.env("SLACK_CREDENTIALS_SECRET_ARN") else {
 			throw LambdaInitializationError.environmentVariableNotFound(variable: "SLACK_CREDENTIALS_SECRET_ARN")
 		}
 		let slackCredentials_secretRequest: GetSecretValueInput = .init(secretId: slackCredentials_secretArn)
 		let slackCredentials_secretResponse = try await secretsManagerClient.getSecretValue(input: slackCredentials_secretRequest)
 
+		context.logger.info("Decoding Slack Credentials")
 		guard let slackCredentials_string = slackCredentials_secretResponse.secretString else {
 			throw LambdaInitializationError.secretNil(description: "Slack credentials", arn: slackCredentials_secretArn)
 		}
@@ -157,20 +161,24 @@ final class FunctionUrlLambdaHandler: LambdaHandler {
 		let slackCredentials = try decoder.decode(SlackCredentials.self, from: slackCredentials_data)
 
 
-		guard let githubSlackConfiguration_secretArn = Lambda.env("CONFIGURATION_SECRET_ARN") else {
+		context.logger.info("Fetching Lambda configuration")
+		guard let configuration_secretArn = Lambda.env("CONFIGURATION_SECRET_ARN") else {
 			throw LambdaInitializationError.environmentVariableNotFound(variable: "CONFIGURATION_SECRET_ARN")
 		}
-		let githubSlackConfiguration_secretRequest: GetSecretValueInput = .init(secretId: githubSlackConfiguration_secretArn)
-		let githubSlackConfiguration_secretResponse = try await secretsManagerClient.getSecretValue(input: githubSlackConfiguration_secretRequest)
+		let configuration_secretRequest: GetSecretValueInput = .init(secretId: configuration_secretArn)
+		let configuration_secretResponse = try await secretsManagerClient.getSecretValue(input: configuration_secretRequest)
 
-		guard let githubSlackConfiguration_string = githubSlackConfiguration_secretResponse.secretString else {
-			throw LambdaInitializationError.secretNil(description: "GitHub/Slack configuration", arn: githubSlackConfiguration_secretArn)
+		context.logger.info("Decoding Lambda configuration")
+		guard let configuration_string = configuration_secretResponse.secretString else {
+			throw LambdaInitializationError.secretNil(description: "Lambda configuration", arn: configuration_secretArn)
 		}
-		guard let githubSlackConfiguration_data = githubSlackConfiguration_string.data(using: .utf8) else {
-			throw LambdaInitializationError.secretNotUtf8(description: "GitHub/Slack configuration", arn: githubSlackConfiguration_secretArn)
+		guard let configuration_data = configuration_string.data(using: .utf8) else {
+			throw LambdaInitializationError.secretNotUtf8(description: "Lambda configuration", arn: configuration_secretArn)
 		}
-		let githubSlackConfiguration = try decoder.decode(GithubSlackConfiguration.self, from: githubSlackConfiguration_data)
+		let configuration = try decoder.decode(Configuration.self, from: configuration_data)
 
+
+		context.logger.info("Creating underlying API clients")
 
 		self.httpClient = .init(eventLoopGroupProvider: .createNew)
 
@@ -184,15 +192,16 @@ final class FunctionUrlLambdaHandler: LambdaHandler {
 		// We already verified the entire blob containing this item could be decoded to data as UTF-8, no need to check again.
 		self.githubWebhookSecret = githubCredentials.webhookSecret.data(using: .utf8)!
 
-		self.githubProjectId = githubSlackConfiguration.githubProjectId
-		self.githubProjectFieldId = githubSlackConfiguration.githubProjectFieldId
+		self.githubProjectId = configuration.githubProjectId
+		self.githubProjectFieldId = configuration.githubProjectFieldId
 
 
 		self.slackClient = .init(
 			authToken: slackCredentials.botToken,
 			httpClient: httpClient
 		)
-		self.slackChannelId = githubSlackConfiguration.slackChannelId
+
+		self.slackChannelId = configuration.slackChannelId
 	}
 
 	deinit {
@@ -258,7 +267,7 @@ final class FunctionUrlLambdaHandler: LambdaHandler {
 		*/
 		let installationId: Int
 		do {
-			let basePayload = try JSONDecoder().decode(GithubBaseWebhookEvent.self, from: payload_data)
+			let basePayload = try JSONDecoder().decode(BaseWebhookEvent.self, from: payload_data)
 			installationId = basePayload.installationId
 		}
 		catch {
@@ -274,6 +283,7 @@ final class FunctionUrlLambdaHandler: LambdaHandler {
 
 			default:
 				context.logger.error("Unrecognized event: \(eventName)")
+				// Specifically surface this to the GitHub webhooks console, so we can find out pretty quickly when we receive another event type.
 				return .init(statusCode: .unprocessableEntity)
 		}
 	}

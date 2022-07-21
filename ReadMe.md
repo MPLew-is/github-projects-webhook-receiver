@@ -54,8 +54,8 @@ This is built upon the following packages, see those repositories for more in-de
 		}
 	'
 	```
-10. Copy the value at `data.organization.projectV2.id` and replace the example value for the key `githubProjectId` in `Secrets/webhook-receiver-configuration.json`
-11. Copy the `data.organization.projectV2.field.id`, **delete the `SS` in the ID (replace `PVTSSF` with `PVTF`), then replace the example value for the key `githubProjectFieldId` in `Secrets/webhook-receiver-configuration.json`
+10. Copy the value at `data.organization.projectV2.id` and replace the example value for the key `githubProjectId` in `Secrets/lambda-configuration.json`
+11. Copy the `data.organization.projectV2.field.id`, **delete the `SS` in the ID (replace `PVTSSF` with `PVTF`), then replace the example value for the key `githubProjectFieldId` in `Secrets/lambda-configuration.json`
 12. [Create an HMAC secret for your webhook](https://docs.github.com/en/developers/webhooks-and-events/webhooks/securing-your-webhooks#setting-your-secret-token), copy it, and replace the example value for the key `webhookSecret` in `Secrets/github-credentials.json`
 	- An example tool has been provided in this package to generate a sufficiently secure secret, simply run: `swift run GenerateHmacSecret` and copy the resulting output string
 
@@ -67,7 +67,7 @@ This is built upon the following packages, see those repositories for more in-de
 3. Install the app to your workspace
 4. Copy the app's Bot Token from the **OAuth & Permissions** page and replace the example value for the key `botToken` in `Secrets/slack-credentials.json`
 5. Invite the bot user into the channel you wish to post messages to (`/invite @bot_user_name`).
-6. Click the channel name in the upper bar, then copy the channel ID from the resulting screen and replace the example value for the key `slackChannelId` in `Secrets/webhook-receiver-configuration.json`
+6. Click the channel name in the upper bar, then copy the channel ID from the resulting screen and replace the example value for the key `slackChannelId` in `Secrets/lambda-configuration.json`
 
 
 ### AWS ###
@@ -76,7 +76,7 @@ This is built upon the following packages, see those repositories for more in-de
 	- Naming does not matter here, but the following is recommended:
 		- `github-credentials.json`: `githubCredentials`
 		- `slack-credentials.json`: `slackCredentials`
-		- `webhook-receiver-configuration.json`: `webhookReceiverConfiguration`
+		- `lambda-configuration.json`: `webhookReceiverConfiguration`
 	- Copy the ARNs of all 3 for use in a later step
 2. Install `Docker`
 	- On macOS with Homebrew installed, you can just run:
