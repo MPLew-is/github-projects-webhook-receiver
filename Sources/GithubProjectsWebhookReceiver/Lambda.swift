@@ -1,6 +1,7 @@
 import Foundation
 
 import AsyncHTTPClient
+import AWSDynamoDB
 import AWSLambdaEvents
 import AWSLambdaRuntime
 import AWSSecretsManager
@@ -81,6 +82,8 @@ struct Configuration: Decodable {
 	let githubProjectId: String
 	/// GraphQL node ID of the GitHub Project field being watched for changes
 	let githubProjectFieldId: String
+	/// GitHub repository to be watched for issue comments
+	let githubRepository: String
 
 	/// Slack Channel ID where messages should be sent
 	let slackChannelId: String
@@ -93,6 +96,9 @@ final class FunctionUrlLambdaHandler: LambdaHandler {
 	/// Stored client for making asynchronous HTTP requests
 	let httpClient: HTTPClient
 
+	/// Stored DynamoDB client
+	let dynamoDbClient: DynamoDbClient
+
 
 	/// Stored client for interfacing with the GitHub API
 	let githubClient: GithubApiClient
@@ -103,6 +109,8 @@ final class FunctionUrlLambdaHandler: LambdaHandler {
 	let githubProjectId: String
 	/// GraphQL node ID of the GitHub Project field being watched for changes
 	let githubProjectFieldId: String
+	/// GitHub repository to be watched for issue comments
+	let githubRepository: String
 
 
 	/// Stored client for interfacing with the Slack API
@@ -118,6 +126,7 @@ final class FunctionUrlLambdaHandler: LambdaHandler {
 			throw LambdaInitializationError.environmentVariableNotFound(variable: "REGION")
 		}
 		let secretsManagerClient: SecretsManagerClient = try .init(region: region)
+		self.dynamoDbClient = try .init(region: region)
 
 
 		// Use a single decoder for all the decoding below, for performance.
@@ -194,6 +203,7 @@ final class FunctionUrlLambdaHandler: LambdaHandler {
 
 		self.githubProjectId = configuration.githubProjectId
 		self.githubProjectFieldId = configuration.githubProjectFieldId
+		self.githubRepository = configuration.githubRepository
 
 
 		self.slackClient = .init(
@@ -280,6 +290,9 @@ final class FunctionUrlLambdaHandler: LambdaHandler {
 		switch eventName {
 			case "projects_v2_item":
 				return try await self.handleProjectsItem(payload: payload_data, context: context, installationId: installationId)
+
+			case "issue_comment":
+				return try await self.handleIssueComment(payload: payload_data, context: context, installationId: installationId)
 
 			default:
 				context.logger.error("Unrecognized event: \(eventName)")

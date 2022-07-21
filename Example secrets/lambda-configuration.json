@@ -1,5 +1,6 @@
 {
 	"githubProjectId": "PVT_...",
 	"githubProjectFieldId": "PVTF_...",
+	"githubRepository": "{User}/{Repository}",
 	"slackChannelId": "C..."
 }

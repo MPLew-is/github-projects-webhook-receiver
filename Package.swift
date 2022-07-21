@@ -32,6 +32,7 @@ let package = Package(
 				.product(name: "AsyncHTTPClient",        package: "async-http-client"),
 				.product(name: "AWSLambdaEvents",        package: "swift-aws-lambda-events"),
 				.product(name: "AWSLambdaRuntime",       package: "swift-aws-lambda-runtime"),
+				.product(name: "AWSDynamoDB",            package: "aws-sdk-swift"),
 				.product(name: "AWSSecretsManager",      package: "aws-sdk-swift"),
 				.product(name: "BigInt",                 package: "BigInt"),
 				.product(name: "Crypto",                 package: "swift-crypto"),
