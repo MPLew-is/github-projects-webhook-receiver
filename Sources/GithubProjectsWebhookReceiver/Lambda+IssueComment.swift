@@ -309,6 +309,7 @@ extension FunctionUrlLambdaHandler {
 			"itemId"         : .s(projectItem.id),
 			"fieldId"        : .s(statusField.id),
 			"fieldValue"     : .s(statusValue.id),
+			"fieldValueName" : .s(statusValue.name),
 			"installationId" : .n(String(installationId)),
 			"username"       : .s(payload.username),
 			"commentsUrl"    : .s(payload.issueCommentsUrl),
