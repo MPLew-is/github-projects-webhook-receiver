@@ -55,28 +55,6 @@ fileprivate struct IssueCommentEvent: DeepDecodable {
 }
 
 
-/// Request body for [adding a reaction to an issue comment](https://docs.github.com/en/rest/reactions#create-reaction-for-an-issue-comment)
-fileprivate struct IssueCommentReactionRequest: Encodable {
-	/// [Possible reactions to GitHub issue comments](https://docs.github.com/en/rest/reactions#about-the-reactions-api)
-	fileprivate enum Reaction: String, Encodable {
-		case plusOne  = "+1"
-		case minusOne = "-1"
-		case laugh
-		case confused
-		case heart
-		case hooray
-		case rocket
-		case eyes
-	}
-
-	let content: Reaction
-}
-
-
-/// Shortcut type alias for a DynamoDB attribute value
-typealias DynamoDbValue = DynamoDbClientTypes.AttributeValue
-
-
 /// Selected fields and child objects of a GitHub Issue
 struct Issue: GithubGraphqlQueryable {
 	/// Selected fields and child objects of a GitHub Projects (V2) project
@@ -142,11 +120,8 @@ struct Issue: GithubGraphqlQueryable {
 }
 
 
-/// Request body for [creating an issue comment](https://docs.github.com/en/rest/issues/comments#create-an-issue-comment)
-struct IssueCommentRequest: Encodable {
-	let body: String
-}
-
+/// Shortcut type alias for a DynamoDB attribute value
+typealias DynamoDbValue = DynamoDbClientTypes.AttributeValue
 
 extension FunctionUrlLambdaHandler {
 	/**
@@ -356,14 +331,8 @@ extension FunctionUrlLambdaHandler {
 	- Throws: Only rethrows errors from the underlying encoding/GitHub API interactions
 	*/
 	fileprivate func reactWithPlusOne(payload: IssueCommentEvent, installationId: Int) async throws -> Output {
-		let requestBody = IssueCommentReactionRequest(content: .plusOne)
-		let requestBody_data = try JSONEncoder().encode(requestBody)
+		let _ = try await self.githubClient.createIssueCommentReaction(url: payload.commentReactionsUrl, reaction: .plusOne, for: installationId)
 
-		var request = HTTPClientRequest(url: payload.commentReactionsUrl)
-		request.method = .POST
-		request.body = .bytes(requestBody_data)
-
-		let _ = try await self.githubClient.execute(request, for: installationId)
 		return .init(statusCode: .noContent)
 	}
 
@@ -403,18 +372,8 @@ extension FunctionUrlLambdaHandler {
 	- Throws: Only rethrows errors from the underlying encoding/GitHub API interactions
 	*/
 	fileprivate func postUsageErrorComment(payload: IssueCommentEvent, comment: String, installationId: Int) async throws -> Output {
-		var confusedRequest = HTTPClientRequest(url: payload.commentReactionsUrl)
-		confusedRequest.method = .POST
-		let confusedRequestBody = IssueCommentReactionRequest(content: .confused)
-
-		let _ = try await self.githubClient.execute(confusedRequest, body: confusedRequestBody, for: installationId)
-
-
-		var commentRequest = HTTPClientRequest(url: payload.issueCommentsUrl)
-		commentRequest.method = .POST
-		let commentRequestBody = IssueCommentRequest(body: "@\(payload.username) \(comment)")
-
-		let _ = try await self.githubClient.execute(commentRequest, body: commentRequestBody, for: installationId)
+		let _ = try await self.githubClient.createIssueCommentReaction(url: payload.commentReactionsUrl, reaction: .confused, for: installationId)
+		let _ = try await self.githubClient.createIssueComment(url: payload.issueCommentsUrl, body: "@\(payload.username) \(comment)", for: installationId)
 
 		return .init(statusCode: .noContent)
 	}
