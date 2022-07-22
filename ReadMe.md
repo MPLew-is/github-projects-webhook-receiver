@@ -31,7 +31,7 @@ This is built upon the following packages, see those repositories for more in-de
 1. [Create a GitHub App](https://docs.github.com/en/developers/apps/building-github-apps/creating-a-github-app) in your account (alternatively use an existing app you have already created)
 	- The only values you need to fill in are the app name and URL (which can be your GitHub profile URL), and you can uncheck `Active` under `Webhook` (you'll come back and fill this in once you have a URL)
 	- Under `Repository permissions`, then `Issues`, grant `Read and write` permissions
-	- Under `Organization permissions`, then `Projects`, grant `Read-only` permissions
+	- Under `Organization permissions`, then `Projects`, grant `Read and write` permissions
 2. After successful creation, copy the `App ID` value and replace the example value for the key `appId` in `Secrets/github-credentials.json`
 3. At the bottom of the same page, under `Private keys`, generate a private key for your app
 4. Open the generated and downloaded `.pem` file in a text editor, copy the entire contents, and replace the example value for the key `privateKey` in `Secrets/github-credentials.json`
@@ -96,18 +96,19 @@ This is built upon the following packages, see those repositories for more in-de
 		2. Launch and set up `Docker.app` (default settings are fine)
 5. Create the directory for the output Lambda: `mkdir .lamdba`
 6. Build the Lambda in a container, and copy the resulting Zip to your host: `DOCKER_BUILDKIT=1 docker build --output .lambda`
-7. [Create an AWS Lambda](https://docs.aws.amazon.com/lambda/latest/dg/getting-started.html) and upload the Zip file at `.lambda/debug/GithubProjectsSlackNotifierLambda.zip` as the deployment package
+7. [Create an AWS Lambda](https://docs.aws.amazon.com/lambda/latest/dg/getting-started.html) and upload the Zip file at `.lambda/debug/GithubProjectsWebhookReceiver.zip` as the deployment package
 	- You will need to [grant the Lambda permissions](https://docs.aws.amazon.com/lambda/latest/dg/lambda-permissions.html) to the Secrets and DynamoDB table created above
 8. [Set environment variables for the Lambda](https://docs.aws.amazon.com/lambda/latest/dg/configuration-envvars.html) to function correctly:
 	- `REGION`: AWS region name in which you've deployed the Lambda and secrets (for example, `us-west-1`)
 	- `GITHUB_CREDENTIALS_SECRET_ARN`: ARN for the GitHub credentials secret created above
 	- `SLACK_CREDENTIALS_SECRET_ARN`: ARN for the Slack credentials secret created above
-	- `CONFIGURATION_SECRET_ARN`: ARN for the GitHub/Slack configuration secret created above
+	- `CONFIGURATION_SECRET_ARN`: ARN for the configuration secret created above
+	- `SCHEDULED_MOVES_TABLE_NAME`: name of the DynamoDB table created above
 9. [Create a Function URL](https://docs.aws.amazon.com/lambda/latest/dg/urls-configuration.html) for your Lambda
 10. Back in your GitHub App settings, in the `General` tab and the `Webhook` section, check the `Active` box and fill in your new Lambda URL
 	- Use the HMAC secret created above and stored in `Secrets/github-credentials.json` as the Webhook secret
 	- Make sure to click `Save changes` when done
-11. In the `Permissions & events` tab, under the `Subscribe to events` section, select `Projects v2 item` and then click `Save changes`
+11. In the `Permissions & events` tab, under the `Subscribe to events` section, select `Projects v2 item` and `Issue comments` and then click `Save changes`
 
 You should now be able to:
 - Create/move items in your project and have a Slack notification sent to your specified channel

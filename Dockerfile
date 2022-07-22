@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Define common arguments here so they can be used in both `FROM` blocks below.
-ARG BUILD_PRODUCT=GithubProjectsSlackNotifierLambda
+ARG BUILD_PRODUCT=GithubProjectsWebhookReceiver
 ARG BUILD_CONFIGURATION=debug
 ARG WORKING_DIRECTORY="/${BUILD_PRODUCT}"
 ARG LAMBDA_OUTPUT_DIRECTORY="${WORKING_DIRECTORY}/.lambda"
