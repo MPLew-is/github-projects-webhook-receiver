@@ -63,7 +63,7 @@ This is built upon the following packages, see those repositories for more in-de
 	'
 	```
 11. Copy the value at `data.organization.projectV2.id` and replace the example value for the key `githubProjectId` in `Secrets/lambda-configuration.json`
-12. Copy the `data.organization.projectV2.field.id`, **delete the `SS` in the ID (replace `PVTSSF` with `PVTF`)**, then replace the example value for the key `githubProjectFieldId` in `Secrets/lambda-configuration.json`
+12. Copy the `data.organization.projectV2.field.id`, then replace the example value for the key `githubProjectFieldId` in `Secrets/lambda-configuration.json`
 13. [Create an HMAC secret for your webhook](https://docs.github.com/en/developers/webhooks-and-events/webhooks/securing-your-webhooks#setting-your-secret-token), copy it, and replace the example value for the key `webhookSecret` in `Secrets/github-credentials.json`
 	- An example tool has been provided in this package to generate a sufficiently secure secret, simply run: `swift run GenerateHmacSecret` and copy the resulting output string
 
